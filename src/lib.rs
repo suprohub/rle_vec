@@ -24,7 +24,7 @@ use std::io;
 use std::iter::FromIterator;
 use std::iter::{once, repeat};
 use std::cmp;
-use std::ops::Index;
+use std::ops::{Bound, Index, RangeBounds};
 
 /// The `RleVec` struct handles like a normal vector and supports a subset from the `Vec` methods.
 ///
@@ -659,6 +659,34 @@ impl<T: Eq + Clone> RleVec<T> {
         self.runs.truncate(index + 1);
         self.runs[index].end = len - 1;
     }
+
+    pub fn drain<R: RangeBounds<usize>>(&mut self, range: R) {
+        let start = match range.start_bound() {
+            Bound::Unbounded => 0,
+            Bound::Excluded(index) => *index,
+            Bound::Included(index) => *index
+        };
+        let end = match range.end_bound() {
+            Bound::Unbounded => self.len() - 1,
+            Bound::Excluded(index) => *index,
+            Bound::Included(index) => *index
+        };
+        // Get start and end indexes
+        let start_index = self.run_index(start);
+        let end_index = self.run_index(end);
+        
+        // Edit ends for match drain
+        self.runs[start_index].end = start - 1;
+        self.runs[end_index].end = start + (self.runs[end_index].end - end);
+
+        // Update other runs
+        for run in self.runs[end_index + 1..].iter_mut() {
+            run.end -= start + 1;
+        }
+
+        // Remove unusual runs
+        self.runs.drain(start_index + 1..end_index);
+    }
 }
 
 impl<T> Index<usize> for RleVec<T> {
@@ -1046,6 +1074,16 @@ mod tests {
         assert_eq!(rle.len(), 1);
         rle.truncate(0);
         assert_eq!(rle.runs_len(), 0);
+
+        rle.push_n(5, 1);
+        rle.push_n(3, 2);
+        rle.push_n(6, 3);
+        rle.drain(3..7);
+        assert_eq!(rle.to_vec(), vec![1, 1, 1, 2, 3, 3, 3, 3, 3, 3]);
+
+        let mut rle = RleVec::from(&[1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 4, 3, 3, 4, 6, 6, 6, 6, 6][..]);
+        rle.drain(5..14);
+        assert_eq!(rle.to_vec(), vec![1, 1, 2, 2, 2, 6, 6, 6, 6, 6]);
     }
 
     #[test]

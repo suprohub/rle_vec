@@ -647,6 +647,18 @@ impl<T: Eq + Clone> RleVec<T> {
             self.runs.insert(p + 2, InternalRun { value, end: end + 1 });
         }
     }
+
+    pub fn truncate(&mut self, len: usize) {
+        if len == self.len() {
+            return;
+        } else if len == 0 {
+            self.clear();
+            return;
+        }
+        let index = self.run_index(len);
+        self.runs.truncate(index + 1);
+        self.runs[index].end = len - 1;
+    }
 }
 
 impl<T> Index<usize> for RleVec<T> {
@@ -1017,6 +1029,12 @@ mod tests {
         assert_eq!(rle.runs_len(), 5);
         assert_eq!(rle.last(), Some(&5));
         assert_eq!(rle.last_run(), Some(Run {value: &5, len: 3}));
+        rle.truncate(15);
+        assert_eq!(rle.len(), 15);
+        assert_eq!(rle.runs_len(), 5);
+        rle.truncate(10);
+        assert_eq!(rle.len(), 10);
+        assert_eq!(rle.runs_len(), 4);
         rle.clear();
         assert_eq!(rle.len(), 0);
         assert_eq!(rle.runs_len(), 0);
@@ -1026,6 +1044,8 @@ mod tests {
         let mut rle = RleVec::default();
         rle.push(1);
         assert_eq!(rle.len(), 1);
+        rle.truncate(0);
+        assert_eq!(rle.runs_len(), 0);
     }
 
     #[test]
